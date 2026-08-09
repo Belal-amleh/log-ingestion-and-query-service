@@ -1,0 +1,31 @@
+{
+    "name": "logingestion",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "generate": "drizzle-kit generate",
+        "migrate": "drizzle-kit migrate",
+        "build": "npx tsc",
+        "start": "node dist/index.js",
+        "dev": "npx tsc && node dist/index.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@types/express": "^5.0.6",
+        "@types/node": "^26.2.0",
+        "drizzle-kit": "^0.31.10",
+        "tsx": "^4.23.11",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10"
+    },
+    "dependencies": {
+        "drizzle-orm": "^0.45.2",
+        "express": "^5.2.1",
+        "postgres": "^3.4.9"
+    }
+}
