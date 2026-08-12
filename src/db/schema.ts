@@ -4,6 +4,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -18,7 +19,7 @@ export const logLevelEnum = pgEnum("log_level", [
 export const logs = pgTable(
   "logs",
   {
-    id: bigserial("id", { mode: "number" }).primaryKey(),
+    id: bigserial("id", { mode: "number" }),
 
     timestamp: timestamp("timestamp", {
       withTimezone: true,
@@ -36,11 +37,21 @@ export const logs = pgTable(
       .notNull()
       .default({}),
   },
+
   (table) => [
-    index("logs_timestamp_idx").on(table.timestamp),
-    index("logs_service_idx").on(table.service),
-    index("logs_level_idx").on(table.level),
-    // 3 indexes depends on the heavy queries of the project 
+    primaryKey({
+      name: "logs_pkey",
+      columns: [table.id, table.timestamp],
+    }),
+
+    index("logs_timestamp_idx")
+      .on(table.timestamp),
+
+    index("logs_service_idx")
+      .on(table.service),
+
+    index("logs_level_idx")
+      .on(table.level),
   ],
 );
 

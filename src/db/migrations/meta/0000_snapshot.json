@@ -1,5 +1,5 @@
 {
-  "id": "4a724922-1d7b-4212-9fc5-85958ab7a9dd",
+  "id": "cd65d7d2-4e4e-4ae5-80fc-9e0715c6661b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -11,7 +11,7 @@
         "id": {
           "name": "id",
           "type": "bigserial",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "timestamp": {
@@ -95,7 +95,15 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "logs_pkey": {
+          "name": "logs_pkey",
+          "columns": [
+            "id",
+            "timestamp"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
