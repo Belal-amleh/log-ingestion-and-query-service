@@ -1,112 +1,93 @@
 import {
     and,
     desc,
+    asc,
     eq,
     gte,
+    gt,
     lt,
+    lte,
     or,
     sql,
+    type SQL,
 } from "drizzle-orm";
 
 import { db } from "../index.js";
 import { logs, type NewLog } from "../schema.js";
-
-export type InsertLog = {
-    timestamp: Date;
-    level: string;
-    service: string;
-    message: string;
-    metadata?: unknown;
-};
-
-export type QueryLogsOptions = {
-    from?: Date;
-    to?: Date;
-    
-    level?: "info" | "warn" | "error" | "debug";
-    
-    service?: string;
-    
-    cursorTimestamp?: Date;
-    cursorId?: number;
-    
-    limit: number;
-};
-
-export type AggregateOptions = {
-  from: Date;
-  to: Date;
-
-  bucket:
-    | "minute"
-    | "hour"
-    | "day";
-};
+import { decodeCursor } from "../../lib/pagination.js";
+import type { GetLogsParams } from "../../types/logs.js";
 
 export async function insertLogs(
   entries: NewLog[],
-): Promise<void> {
+): Promise<NewLog[]> {
   if (entries.length === 0) {
-    return;
+    return [];
   }
 
-  await db.insert(logs).values(entries);
+  return db.insert(logs).values(entries).returning();
+
 }
+export async function getLogs(
+  params: GetLogsParams,
+): Promise<NewLog[]> {
+  const conditions: SQL[] = [];
 
-
-export async function queryLogs(
-  options: QueryLogsOptions,
-) {
-  const conditions = [];
-
-  if (options.from) {
+  if (params.service !== undefined) {
     conditions.push(
-      gte(logs.timestamp, options.from),
+      eq(logs.service, params.service),
     );
   }
 
-  if (options.to) {
+  if (params.level !== undefined) {
     conditions.push(
-      lt(logs.timestamp, options.to),
+      eq(logs.level, params.level),
     );
   }
 
-  if (options.level) {
+  if (params.from !== undefined) {
     conditions.push(
-      eq(logs.level, options.level),
+      gte(logs.timestamp, params.from),
     );
   }
 
-  if (options.service) {
+  if (params.to !== undefined) {
     conditions.push(
-      eq(logs.service, options.service),
+      lte(logs.timestamp, params.to),
     );
   }
 
-  if (
-    options.cursorTimestamp &&
-    options.cursorId !== undefined
-  ) {
-    conditions.push(
-      or(
-        lt(
-          logs.timestamp,
-          options.cursorTimestamp,
-        ),
+  if (params.cursor !== undefined) {
+    const cursor = decodeCursor(params.cursor);
 
+    if (cursor === null) {
+      throw new Error("Invalid cursor");
+    }
+
+    if (params.sort === "asc") {
+      const cursorCondition = or(
+        gt(logs.timestamp, cursor.timestamp),
         and(
-          eq(
-            logs.timestamp,
-            options.cursorTimestamp,
-          ),
-
-          lt(
-            logs.id,
-            options.cursorId,
-          ),
+          eq(logs.timestamp, cursor.timestamp),
+          gt(logs.id, cursor.id),
         ),
-      ),
-    );
+      );
+
+      if (cursorCondition) {
+        conditions.push(cursorCondition);
+      }
+    } else {
+      const cursorCondition = or(
+        lt(logs.timestamp, cursor.timestamp),
+        and(
+          eq(logs.timestamp, cursor.timestamp),
+          lt(logs.id, cursor.id),
+        ),
+      );
+
+      if (cursorCondition) {
+        conditions.push(cursorCondition);
+      }
+    }
   }
 
   return db
@@ -118,64 +99,13 @@ export async function queryLogs(
         : undefined,
     )
     .orderBy(
-      desc(logs.timestamp),
-      desc(logs.id),
+      params.sort === "asc"
+        ? asc(logs.timestamp)
+        : desc(logs.timestamp),
+
+      params.sort === "asc"
+        ? asc(logs.id)
+        : desc(logs.id),
     )
-    .limit(options.limit);
-}
-
-
-function getBucketInterval(
-  bucket: AggregateOptions["bucket"],
-): string {
-  switch (bucket) {
-    case "minute":
-      return "1 minute";
-
-    case "hour":
-      return "1 hour";
-
-    case "day":
-      return "1 day";
-  }
-}
-
-export async function aggregateLogs(
-  options: AggregateOptions,
-) {
-  const interval =
-    getBucketInterval(options.bucket);
-
-  const bucketExpression = sql`
-    date_bin(
-      ${sql.raw(`interval '${interval}'`)},
-      ${logs.timestamp},
-      timestamptz '1970-01-01'
-    )
-  `;
-
-  return db
-    .select({
-      bucket: bucketExpression,
-
-      count: sql<number>`
-        count(*)::int
-      `,
-    })
-    .from(logs)
-    .where(
-      and(
-        gte(
-          logs.timestamp,
-          options.from,
-        ),
-
-        lt(
-          logs.timestamp,
-          options.to,
-        ),
-      ),
-    )
-    .groupBy(bucketExpression)
-    .orderBy(bucketExpression);
+    .limit(params.limit + 1);
 }
