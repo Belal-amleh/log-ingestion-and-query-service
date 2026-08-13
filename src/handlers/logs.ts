@@ -1,169 +1,183 @@
 import type { Request, Response } from "express";
+import { validateLog } from "../validation/logs.js";
+import { insertLogs, getLogs } from "../db/queries/logs.js";
+import { decodeCursor, encodeCursor } from "../lib/pagination.js";
+import { LogSort } from '../types/logs.js';
 
-import { insertLogs, queryLogs } from "../db/queries/logs.js";
-
-const VALID_LEVELS = [
-  "info",
-  "warn",
-  "error",
-  "debug",
-] as const;
-
-type LogLevel =
-  (typeof VALID_LEVELS)[number];
-
-function isLogLevel(
-  value: unknown,
-): value is LogLevel {
-  return (
-    typeof value === "string" &&
-    VALID_LEVELS.includes(
-      value as LogLevel,
-    )
-  );
-}
-export async function postLogs(
+export async function ingestLogsHandler(
   req: Request,
   res: Response,
 ) {
-  const body = req.body;
-
-  if (
-    !body ||
-    !Array.isArray(body.logs)
-  ) {
+  if (!Array.isArray(req.body)) {
     return res.status(400).json({
-      error: "logs must be an array",
-    });
-  }
-
-  if (body.logs.length === 0) {
-    return res.status(400).json({
-      error: "logs cannot be empty",
+      error: "Request body must be an array",
     });
   }
 
   const entries = [];
 
-  for (const entry of body.logs) {
-    if (!entry || typeof entry !== "object") {
+  for (let i = 0; i < req.body.length; i++) {
+    const result = validateLog(req.body[i]);
+
+    if (!result.success) {
       return res.status(400).json({
-        error: "Invalid log entry",
+        error: result.error,
+        index: i,
       });
     }
 
-    if (
-      typeof entry.timestamp !== "string" ||
-      !isLogLevel(entry.level) ||
-      typeof entry.service !== "string" ||
-      typeof entry.message !== "string"
-    ) {
-      return res.status(400).json({
-        error: "Invalid log entry",
-      });
-    }
-
-    const timestamp =
-      new Date(entry.timestamp);
-
-    if (
-      Number.isNaN(timestamp.getTime())
-    ) {
-      return res.status(400).json({
-        error: "Invalid timestamp",
-      });
-    }
-
-    entries.push({
-      timestamp,
-
-      level: entry.level,
-
-      service: entry.service,
-
-      message: entry.message,
-
-      attributes:
-        entry.attributes ?? {},
-    });
+    entries.push(result.data);
   }
 
   try {
-    await insertLogs(entries);
+    const inserted = await insertLogs(entries);
 
     return res.status(201).json({
-      inserted: entries.length,
+      count: inserted.length,
     });
   } catch (error) {
-    console.error(
-      "Failed to insert logs:",
-      error,
-    );
+    console.error("Failed to ingest logs:", error);
 
     return res.status(500).json({
-      error: "Failed to insert logs",
+      error: "Failed to ingest logs",
     });
   }
 }
-export async function getLogs(
+export async function getLogsHandler(
   req: Request,
   res: Response,
 ) {
-  try {
-    const from = parseDate(
-      req.query.from,
-    );
+  const service =
+    typeof req.query.service === "string"
+      ? req.query.service
+      : undefined;
 
-    const to = parseDate(
-      req.query.to,
-    );
+  const level =
+    typeof req.query.level === "string"
+      ? req.query.level
+      : undefined;
 
-    const level =
-      parseLevel(req.query.level);
+  const from =
+    typeof req.query.from === "string"
+      ? new Date(req.query.from)
+      : undefined;
 
-    const service =
-      parseService(req.query.service);
+  const to =
+    typeof req.query.to === "string"
+      ? new Date(req.query.to)
+      : undefined;
 
-    const limit =
-      parseLimit(req.query.limit);
+  const cursor =
+    typeof req.query.cursor === "string"
+      ? req.query.cursor
+      : undefined;
 
-    const cursor =
-      parseCursor(req.query.cursor);
+  const sortValue =
+    typeof req.query.sort === "string"
+      ? req.query.sort
+      : "desc";
 
-    const result =
-      await queryLogs({
-        from,
-        to,
-        level,
-        service,
+  if (sortValue !== "asc" && sortValue !== "desc") {
+    return res.status(400).json({
+      error: "sort must be asc or desc",
+    });
+  }
 
-        cursorTimestamp:
-          cursor?.timestamp,
+  const sort: LogSort = sortValue;
 
-        cursorId:
-          cursor?.id,
-
-        limit,
+  if (level !== undefined) {
+    if (
+      level !== "info" &&
+      level !== "warn" &&
+      level !== "error" &&
+      level !== "debug"
+    ) {
+      return res.status(400).json({
+        error: "invalid level",
       });
+    }
+  }
 
-    const nextCursor =
-      result.length === limit
-        ? createCursor(
-            result[result.length - 1].timestamp,
-            result[result.length - 1].id,
-          )
-        : null;
+  if (from !== undefined && Number.isNaN(from.getTime())) {
+    return res.status(400).json({
+      error: "invalid from timestamp",
+    });
+  }
+
+  if (to !== undefined && Number.isNaN(to.getTime())) {
+    return res.status(400).json({
+      error: "invalid to timestamp",
+    });
+  }
+
+  if (cursor !== undefined && decodeCursor(cursor) === null) {
+    return res.status(400).json({
+      error: "invalid cursor",
+    });
+  }
+
+  const limitValue =
+    typeof req.query.limit === "string"
+      ? Number(req.query.limit)
+      : 50;
+
+  if (
+    !Number.isInteger(limitValue) ||
+    limitValue <= 0 ||
+    limitValue > 100
+  ) {
+    return res.status(400).json({
+      error: "limit must be between 1 and 100",
+    });
+  }
+
+  try {
+    const rows = await getLogs({
+      service,
+      level: level as
+        | "info"
+        | "warn"
+        | "error"
+        | "debug"
+        | undefined,
+      from,
+      to,
+      cursor,
+      sort,
+      limit: limitValue,
+    });
+
+    const hasMore = rows.length > limitValue;
+
+    const logs = hasMore
+      ? rows.slice(0, limitValue)
+      : rows;
+
+    let nextCursor: string | null = null;
+
+    if (hasMore) {
+      const last = logs[logs.length - 1];
+    
+    if (!last || last.id === undefined) {
+      return res.status(500).json({
+        error: "Failed to create pagination cursor",
+      });
+    }  
+      nextCursor = encodeCursor({
+        timestamp: last.timestamp,
+        id: last.id,
+      });
+    }
 
     return res.status(200).json({
-      logs: result,
+      logs,
       nextCursor,
     });
   } catch (error) {
-    return res.status(400).json({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Invalid request",
+    console.error("Failed to get logs:", error);
+
+    return res.status(500).json({
+      error: "Failed to get logs",
     });
   }
 }
