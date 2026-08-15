@@ -1,31 +1,52 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: logingestion-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: logingestion
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d logingestion" ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    postgres:
+        image: postgres:17-alpine
+        container_name: logingestion-postgres
 
-  api:
-    build: .
-    container_name: logingestion-api
-    ports:
-      - "8080:8080"
-    environment:
-      DB_URL: postgres://postgres:postgres@postgres:5432/logingestion?sslmode=disable
-    depends_on:
-      postgres:
-        condition: service_healthy
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: logingestion
+
+        ports:
+            - "5433:5432"
+
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./initdb:/docker-entrypoint-initdb.d
+
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d logingestion"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+        deploy:
+            resources:
+                limits:
+                    cpus: "1.0"
+                    memory: 1G
+
+    app:
+        build: .
+        init: true
+        container_name: logingestion-app
+
+        ports:
+            - "8080:8080"
+
+        environment:
+            DB_URL: postgres://postgres:postgres@postgres:5432/logingestion?sslmode=disable
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+        deploy:
+            resources:
+                limits:
+                    cpus: "0.5"
+                    memory: 256M
 
 volumes:
-  postgres_data:
+    postgres_data:

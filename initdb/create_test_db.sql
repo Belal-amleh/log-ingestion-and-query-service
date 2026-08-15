@@ -1,0 +1,1 @@
+CREATE DATABASE liqs_test;
