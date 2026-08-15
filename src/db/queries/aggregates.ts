@@ -1,52 +1,41 @@
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
 
-export type AggregateBucket =
-  | "minute"
-  | "hour"
-  | "day";
+export type AggregateBucket = "minute" | "hour" | "day";
 
-type AggregateParams = {
-  from: Date;
-  to: Date;
-  bucket: AggregateBucket;
-  service?: string;
-  level?: "info" | "warn" | "error" | "debug";
-};
+type AggregateLevel = "info" | "warn" | "error" | "debug";
 
-const bucketSql = {
-  minute: sql`'minute'`,
-  hour: sql`'hour'`,
-  day: sql`'day'`,
-};
+interface AggregateLogsOptions {
+    from: Date;
+    to: Date;
+    bucket: AggregateBucket;
+    service?: string;
+    level?: AggregateLevel;
+}
 
-export async function aggregateLogs(
-  params: AggregateParams,
-) {
-  const result = await db.execute(sql`
+export async function aggregateLogs({ from, to, bucket, service, level }: AggregateLogsOptions) {
+    const fromISO = from.toISOString();
+    const toISO = to.toISOString();
+
+    const bucketSQL =
+        bucket === "minute" ? sql.raw("'minute'") : bucket === "hour" ? sql.raw("'hour'") : sql.raw("'day'");
+
+    const result = await db.execute(sql`
     SELECT
       date_trunc(
-        ${bucketSql[params.bucket]},
+        ${bucketSQL},
         timestamp
-      ) AS bucket,
+      ) AS timestamp,
       COUNT(*)::int AS count
     FROM logs
     WHERE
-      timestamp >= ${params.from}
-      AND timestamp < ${params.to}
-      ${
-        params.service !== undefined
-          ? sql`AND service = ${params.service}`
-          : sql``
-      }
-      ${
-        params.level !== undefined
-          ? sql`AND level = ${params.level}`
-          : sql``
-      }
-    GROUP BY bucket
-    ORDER BY bucket ASC
+      timestamp >= ${fromISO}
+      AND timestamp < ${toISO}
+      ${service !== undefined ? sql`AND service = ${service}` : sql``}
+      ${level !== undefined ? sql`AND level = ${level}` : sql``}
+    GROUP BY timestamp
+    ORDER BY timestamp ASC
   `);
 
-  return result;
+    return result;
 }

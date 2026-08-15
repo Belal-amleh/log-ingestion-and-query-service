@@ -1,58 +1,38 @@
-import {
-  bigserial,
-  index,
-  jsonb,
-  pgEnum,
-  pgTable,
-  primaryKey,
-  text,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { bigserial, index, jsonb, pgEnum, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
-export const logLevelEnum = pgEnum("log_level", [
-  "info",
-  "warn",
-  "error",
-  "debug",
-]);
+export const logLevelEnum = pgEnum("log_level", ["info", "warn", "error", "debug"]);
 
 export const logs = pgTable(
-  "logs",
-  {
-    id: bigserial("id", { mode: "number" }),
+    "logs",
+    {
+        id: bigserial("id", { mode: "number" }),
 
-    timestamp: timestamp("timestamp", {
-      withTimezone: true,
-      mode: "date",
-    }).notNull(),
+        timestamp: timestamp("timestamp", {
+            withTimezone: true,
+            mode: "date"
+        }).notNull(),
 
-    level: logLevelEnum("level").notNull(),
+        level: logLevelEnum("level").notNull(),
 
-    service: text("service").notNull(),
+        service: text("service").notNull(),
 
-    message: text("message").notNull(),
+        message: text("message").notNull(),
 
-    attributes: jsonb("attributes")
-      .$type<Record<string, string | number | boolean>>()
-      .notNull()
-      .default({}),
-  },
+        attributes: jsonb("attributes").$type<Record<string, string | number | boolean>>().notNull().default({})
+    },
 
-  (table) => [
-    primaryKey({
-      name: "logs_pkey",
-      columns: [table.id, table.timestamp],
-    }),
+    (table) => [
+        primaryKey({
+            name: "logs_pkey",
+            columns: [table.id, table.timestamp]
+        }),
 
-    index("logs_timestamp_idx")
-      .on(table.timestamp),
+        index("logs_timestamp_idx").on(table.timestamp),
 
-    index("logs_service_idx")
-      .on(table.service),
+        index("logs_service_idx").on(table.service),
 
-    index("logs_level_idx")
-      .on(table.level),
-  ],
+        index("logs_level_idx").on(table.level)
+    ]
 );
 
 export type Log = typeof logs.$inferSelect;
