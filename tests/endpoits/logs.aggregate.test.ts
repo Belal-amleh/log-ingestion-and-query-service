@@ -47,7 +47,9 @@ describe("GET /logs/aggregate", () => {
 
     it("should return aggregated logs", async () => {
         const response = await request(app).get("/logs/aggregate").query({
-            bucket: "hour"
+            bucket: "hour",
+            from: "2026-08-15T00:00:00.000Z",
+            to: "2026-08-16T00:00:00.000Z"
         });
 
         expect(response.status).toBe(200);
@@ -58,7 +60,9 @@ describe("GET /logs/aggregate", () => {
 
     it("should aggregate logs by time bucket", async () => {
         const response = await request(app).get("/logs/aggregate").query({
-            bucket: "hour"
+            bucket: "hour",
+            from: "2026-08-15T00:00:00.000Z",
+            to: "2026-08-16T00:00:00.000Z"
         });
 
         expect(response.status).toBe(200);
@@ -88,7 +92,9 @@ describe("GET /logs/aggregate", () => {
     it("should filter aggregation by level", async () => {
         const response = await request(app).get("/logs/aggregate").query({
             bucket: "hour",
-            level: "error"
+            level: "error",
+            from: "2026-08-15T00:00:00.000Z",
+            to: "2026-08-16T00:00:00.000Z"
         });
         console.log("GET /logs/aggregate response:", response.status, response.body);
         expect(response.status).toBe(200);

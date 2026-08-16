@@ -1,6 +1,6 @@
+// process.loadEnvFile();
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-
 console.log("TEST_DB_URL:", process.env.TEST_DB_URL);
 console.log("DB_URL:", process.env.DB_URL);
 

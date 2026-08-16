@@ -2,7 +2,7 @@
     "name": "logingestion",
     "version": "1.0.0",
     "description": "",
-    "main": "server.js",
+    "main": "index.js",
     "type": "module",
     "scripts": {
         "test": "cross-env TEST_DB_URL=postgres://postgres:postgres@127.0.0.1:5433/liqs_test vitest run",

@@ -33,7 +33,7 @@ export async function aggregateLogs({ from, to, bucket, service, level }: Aggreg
       AND timestamp < ${toISO}
       ${service !== undefined ? sql`AND service = ${service}` : sql``}
       ${level !== undefined ? sql`AND level = ${level}` : sql``}
-    GROUP BY timestamp
+     GROUP BY date_trunc(${bucketSQL}, timestamp)
     ORDER BY timestamp ASC
   `);
 
