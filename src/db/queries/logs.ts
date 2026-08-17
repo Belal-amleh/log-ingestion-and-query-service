@@ -12,6 +12,7 @@ export async function insertLogs(entries: NewLog[]): Promise<Log[]> {
 
     return db.insert(logs).values(entries).returning();
 }
+
 export async function getLogs(params: GetLogsParams): Promise<Log[]> {
     const conditions: SQL[] = [];
 
@@ -23,12 +24,22 @@ export async function getLogs(params: GetLogsParams): Promise<Log[]> {
         conditions.push(eq(logs.level, params.level));
     }
 
-    if (params.from !== undefined) {
-        conditions.push(gte(logs.timestamp, params.from));
+    if (params.since !== undefined) {
+        conditions.push(gte(logs.timestamp, params.since));
     }
 
-    if (params.to !== undefined) {
-        conditions.push(lte(logs.timestamp, params.to));
+    if (params.until !== undefined) {
+        conditions.push(lt(logs.timestamp, params.until));
+    }
+
+    if (params.q !== undefined && params.q.length > 0) {
+        conditions.push(sql`LOWER(${logs.message}) LIKE LOWER(${"%" + params.q + "%"})`);
+    }
+
+    if (params.attributes !== undefined) {
+        for (const [key, value] of Object.entries(params.attributes)) {
+            conditions.push(sql`${logs.attributes} ->> ${key} = ${value}`);
+        }
     }
 
     if (params.cursor !== undefined) {
@@ -38,35 +49,15 @@ export async function getLogs(params: GetLogsParams): Promise<Log[]> {
             throw new Error("Invalid cursor");
         }
 
-        if (params.sort === "asc") {
-            const cursorCondition = or(
-                gt(logs.timestamp, cursor.timestamp),
-                and(eq(logs.timestamp, cursor.timestamp), gt(logs.id, cursor.id))
-            );
-
-            if (cursorCondition) {
-                conditions.push(cursorCondition);
-            }
-        } else {
-            const cursorCondition = or(
-                lt(logs.timestamp, cursor.timestamp),
-                and(eq(logs.timestamp, cursor.timestamp), lt(logs.id, cursor.id))
-            );
-
-            if (cursorCondition) {
-                conditions.push(cursorCondition);
-            }
-        }
+        conditions.push(
+            or(lt(logs.timestamp, cursor.timestamp), and(eq(logs.timestamp, cursor.timestamp), lt(logs.id, cursor.id)))!
+        );
     }
 
     return db
         .select()
         .from(logs)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(
-            params.sort === "asc" ? asc(logs.timestamp) : desc(logs.timestamp),
-
-            params.sort === "asc" ? asc(logs.id) : desc(logs.id)
-        )
+        .orderBy(desc(logs.timestamp), desc(logs.id))
         .limit(params.limit + 1);
 }

@@ -1,11 +1,17 @@
 export type LogSort = "asc" | "desc";
 
-export type GetLogsParams = {
+export interface GetLogsParams {
     service?: string;
     level?: "info" | "warn" | "error" | "debug";
-    from?: Date;
-    to?: Date;
-    limit: number;
+
+    since?: Date;
+    until?: Date;
+
+    attributes?: Record<string, string>;
+
+    q?: string;
+
     cursor?: string;
-    sort: LogSort;
-};
+
+    limit: number;
+}

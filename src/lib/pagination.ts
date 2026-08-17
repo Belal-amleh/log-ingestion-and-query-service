@@ -1,35 +1,38 @@
-export type LogCursor = {
+export interface Cursor {
     timestamp: Date;
     id: number;
-};
-
-export function encodeCursor(cursor: LogCursor): string {
-    return Buffer.from(
-        JSON.stringify({
-            timestamp: cursor.timestamp.toISOString(),
-            id: cursor.id
-        })
-    ).toString("base64url");
 }
 
-export function decodeCursor(value: string): LogCursor | null {
+export function encodeCursor(cursor: Cursor): string {
+    const payload = JSON.stringify({
+        timestamp: cursor.timestamp.toISOString(),
+        id: cursor.id
+    });
+
+    return Buffer.from(payload).toString("base64url");
+}
+
+export function decodeCursor(cursor: string): Cursor | null {
     try {
-        const decoded: unknown = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+        const decoded = Buffer.from(cursor, "base64url").toString("utf8");
 
-        if (typeof decoded !== "object" || decoded === null) {
+        const parsed: unknown = JSON.parse(decoded);
+
+        if (typeof parsed !== "object" || parsed === null) {
             return null;
         }
 
-        const data = decoded as {
-            timestamp?: unknown;
-            id?: unknown;
-        };
+        const value = parsed as Record<string, unknown>;
 
-        if (typeof data.timestamp !== "string" || typeof data.id !== "number") {
+        if (typeof value.timestamp !== "string") {
             return null;
         }
 
-        const timestamp = new Date(data.timestamp);
+        if (typeof value.id !== "number" || !Number.isInteger(value.id)) {
+            return null;
+        }
+
+        const timestamp = new Date(value.timestamp);
 
         if (Number.isNaN(timestamp.getTime())) {
             return null;
@@ -37,7 +40,7 @@ export function decodeCursor(value: string): LogCursor | null {
 
         return {
             timestamp,
-            id: data.id
+            id: value.id
         };
     } catch {
         return null;
