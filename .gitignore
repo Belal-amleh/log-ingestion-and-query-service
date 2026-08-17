@@ -33,3 +33,5 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+# Load generator
+k6/
