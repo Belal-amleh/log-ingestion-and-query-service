@@ -15,6 +15,8 @@ console.log("ACTUAL DB:", {
     database: url.pathname
 });
 
-const client = postgres(databaseUrl);
+const client = postgres(databaseUrl, {
+    max: 10
+});
 
 export const db = drizzle(client);
